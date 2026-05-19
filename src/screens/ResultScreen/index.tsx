@@ -3,6 +3,7 @@ import { View, Text, TouchableOpacity, StyleSheet, Animated } from 'react-native
 import { useGameStore } from '../../store';
 import { SPACING, RADIUS, FONT_SIZE, FONT_WEIGHT, SHADOWS, ColorPalette } from '../../constants/theme';
 import { useColors, useGlobalStyles } from '../../hooks/useTheme';
+import { BannerAd, BannerAdSize, TestIds } from 'react-native-google-mobile-ads';
 
 const makeStyles = (C: ColorPalette) => StyleSheet.create({
   container: {
@@ -116,6 +117,16 @@ export const ResultScreen = () => {
 
   return (
     <Animated.View style={[gs.container, styles.container, { opacity: fadeAnim }]}>
+      <View style={{ position: 'absolute', top: 40, alignItems: 'center', width: '100%', zIndex: 10 }}>
+        <BannerAd
+          unitId={TestIds.BANNER}
+          size={BannerAdSize.ANCHORED_ADAPTIVE_BANNER}
+          requestOptions={{
+            requestNonPersonalizedAdsOnly: true,
+          }}
+        />
+      </View>
+
       <Animated.View style={[{ alignItems: 'center', marginBottom: SPACING.xxxl }, { transform: [{ translateY: slideAnim }] }]}>
         <Text style={styles.gameOverLabel}>GAME OVER</Text>
         {isNewHighScore && (
@@ -154,6 +165,16 @@ export const ResultScreen = () => {
           <Text style={[gs.buttonText, { color: C.textSecondary, letterSpacing: 2 }]}>HOME</Text>
         </TouchableOpacity>
       </Animated.View>
+
+      <View style={{ position: 'absolute', bottom: 30, alignItems: 'center', width: '100%' }}>
+        <BannerAd
+          unitId={TestIds.BANNER}
+          size={BannerAdSize.ANCHORED_ADAPTIVE_BANNER}
+          requestOptions={{
+            requestNonPersonalizedAdsOnly: true,
+          }}
+        />
+      </View>
 
       <View style={styles.bottomAccent} pointerEvents="none" />
     </Animated.View>

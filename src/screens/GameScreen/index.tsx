@@ -13,6 +13,7 @@ import {
 } from '../../constants';
 import { TileData } from '../../types';
 import { audioManager } from '../../game/audio';
+import { BannerAd, BannerAdSize, TestIds } from 'react-native-google-mobile-ads';
 
 type FeedbackType = 'perfect' | 'good' | 'miss' | null;
 
@@ -30,8 +31,8 @@ export const GameScreen = () => {
   const [missFlash, setMissFlash] = useState(false);
 
   const tilesRef = useRef<TileData[]>([]);
-  const requestRef = useRef<number>();
-  const lastTimeRef = useRef<number>();
+  const requestRef = useRef<number>(0);
+  const lastTimeRef = useRef<number>(0);
   const currentSpeedRef = useRef(BASE_SPEED);
   const timeElapsedRef = useRef(0);
   const spawnTimerRef = useRef(0);
@@ -259,6 +260,16 @@ export const GameScreen = () => {
         <View style={styles.hitZone} pointerEvents="none">
           <View style={styles.hitZoneLine} />
         </View>
+      </View>
+
+      <View style={{ position: 'absolute', bottom: 0, alignItems: 'center', width: '100%', zIndex: 100 }}>
+        <BannerAd
+          unitId={TestIds.BANNER}
+          size={BannerAdSize.ANCHORED_ADAPTIVE_BANNER}
+          requestOptions={{
+            requestNonPersonalizedAdsOnly: true,
+          }}
+        />
       </View>
     </View>
   );
