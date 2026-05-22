@@ -1,9 +1,9 @@
 import React, { useEffect, useMemo, useRef } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Animated } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Animated, ActivityIndicator } from 'react-native';
 import { useGameStore } from '../../store';
 import { SPACING, RADIUS, FONT_SIZE, FONT_WEIGHT, SHADOWS, ColorPalette } from '../../constants/theme';
 import { useColors, useGlobalStyles } from '../../hooks/useTheme';
-import { BannerAd, BannerAdSize, TestIds } from 'react-native-google-mobile-ads';
+import { BannerAd, BannerAdSize, TestIds, useRewardedAd } from 'react-native-google-mobile-ads';
 
 const makeStyles = (C: ColorPalette) => StyleSheet.create({
   container: {
@@ -84,6 +84,27 @@ const makeStyles = (C: ColorPalette) => StyleSheet.create({
     width: '100%',
     gap: SPACING.md,
   },
+  watchAdButton: {
+    width: '100%',
+    paddingVertical: SPACING.lg,
+    borderRadius: RADIUS.lg,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1.5,
+    borderColor: C.warning,
+    backgroundColor: 'rgba(255,184,0,0.10)',
+    flexDirection: 'row',
+    gap: SPACING.sm,
+  },
+  watchAdText: {
+    fontSize: FONT_SIZE.body,
+    fontWeight: FONT_WEIGHT.bold,
+    color: C.warning,
+    letterSpacing: 2,
+  },
+  watchAdDisabled: {
+    opacity: 0.4,
+  },
   bottomAccent: {
     position: 'absolute',
     bottom: 0,
@@ -97,11 +118,16 @@ const makeStyles = (C: ColorPalette) => StyleSheet.create({
 });
 
 export const ResultScreen = () => {
-  const { score, maxCombo, stats, setGameState, resetGame } = useGameStore();
+  const { score, maxCombo, stats, setGameState, resetGame, continueGame, adContinueUsed } = useGameStore();
   const C = useColors();
   const gs = useGlobalStyles();
   const styles = useMemo(() => makeStyles(C), [C]);
   const isNewHighScore = score >= stats.highScore && score > 0;
+
+  const { isLoaded, isEarnedReward, load, show } = useRewardedAd(
+    adContinueUsed ? null : TestIds.REWARDED,
+    { requestNonPersonalizedAdsOnly: true },
+  );
 
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(40)).current;
@@ -114,6 +140,14 @@ export const ResultScreen = () => {
       Animated.spring(scoreScale, { toValue: 1, useNativeDriver: true, speed: 10, bounciness: 10, delay: 200 }),
     ]).start();
   }, []);
+
+  useEffect(() => {
+    if (!adContinueUsed) load();
+  }, [adContinueUsed]);
+
+  useEffect(() => {
+    if (isEarnedReward) continueGame();
+  }, [isEarnedReward]);
 
   return (
     <Animated.View style={[gs.container, styles.container, { opacity: fadeAnim }]}>
@@ -158,6 +192,19 @@ export const ResultScreen = () => {
       </Animated.View>
 
       <Animated.View style={[styles.buttonSection, { transform: [{ translateY: slideAnim }] }]}>
+        {!adContinueUsed && (
+          <TouchableOpacity
+            style={[styles.watchAdButton, !isLoaded && styles.watchAdDisabled]}
+            activeOpacity={0.8}
+            disabled={!isLoaded}
+            onPress={() => show()}
+          >
+            {!isLoaded && <ActivityIndicator size="small" color={C.warning} />}
+            <Text style={styles.watchAdText}>
+              {!isLoaded ? 'LOADING AD...' : 'WATCH AD TO CONTINUE'}
+            </Text>
+          </TouchableOpacity>
+        )}
         <TouchableOpacity style={gs.primaryButton} activeOpacity={0.85} onPress={() => { resetGame(); setGameState('playing'); }}>
           <Text style={[gs.buttonText, { letterSpacing: 3 }]}>RETRY</Text>
         </TouchableOpacity>

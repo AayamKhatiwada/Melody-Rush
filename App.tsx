@@ -2,6 +2,7 @@ import { StatusBar } from 'expo-status-bar';
 import React, { useEffect, useRef, useState } from 'react';
 import { StyleSheet, View, Text, Animated } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import mobileAds from 'react-native-google-mobile-ads';
 import * as FileSystem from 'expo-file-system/src/legacy';
 import { useGameStore, PENDING_CONVERSION_KEY } from './src/store';
 import { HomeScreen } from './src/screens/HomeScreen';
@@ -14,25 +15,107 @@ import { useColors } from './src/hooks/useTheme';
 import { AudioAnalyzerProvider, useAudioAnalyzer } from './src/utils/AudioAnalyzer';
 
 function LoadingScreen() {
-  const C = useColors();
   const pulseAnim = useRef(new Animated.Value(0.5)).current;
+  const scaleAnim = useRef(new Animated.Value(0.85)).current;
+  const ring1Anim = useRef(new Animated.Value(0)).current;
+  const ring2Anim = useRef(new Animated.Value(0)).current;
+  const dotAnims = [
+    useRef(new Animated.Value(0.3)).current,
+    useRef(new Animated.Value(0.3)).current,
+    useRef(new Animated.Value(0.3)).current,
+  ];
 
   useEffect(() => {
+    // Logo entrance
+    Animated.spring(scaleAnim, {
+      toValue: 1,
+      friction: 6,
+      tension: 80,
+      useNativeDriver: true,
+    }).start();
+
+    // Pulsing glow on the icon
     Animated.loop(
       Animated.sequence([
-        Animated.timing(pulseAnim, { toValue: 1, duration: 700, useNativeDriver: true }),
-        Animated.timing(pulseAnim, { toValue: 0.5, duration: 700, useNativeDriver: true }),
+        Animated.timing(pulseAnim, { toValue: 1, duration: 900, useNativeDriver: true }),
+        Animated.timing(pulseAnim, { toValue: 0.4, duration: 900, useNativeDriver: true }),
       ])
     ).start();
+
+    // Expanding rings
+    const ringLoop = (anim: Animated.Value, delay: number) =>
+      Animated.loop(
+        Animated.sequence([
+          Animated.delay(delay),
+          Animated.parallel([
+            Animated.timing(anim, { toValue: 1, duration: 1600, useNativeDriver: true }),
+          ]),
+          Animated.timing(anim, { toValue: 0, duration: 0, useNativeDriver: true }),
+        ])
+      );
+    ringLoop(ring1Anim, 0).start();
+    ringLoop(ring2Anim, 800).start();
+
+    // Staggered loading dots
+    const dotLoop = (anim: Animated.Value, delay: number) =>
+      Animated.loop(
+        Animated.sequence([
+          Animated.delay(delay),
+          Animated.timing(anim, { toValue: 1, duration: 300, useNativeDriver: true }),
+          Animated.timing(anim, { toValue: 0.3, duration: 300, useNativeDriver: true }),
+          Animated.delay(600),
+        ])
+      );
+    dotAnims.forEach((a, i) => dotLoop(a, i * 200).start());
   }, []);
 
+  const ringScale1 = ring1Anim.interpolate({ inputRange: [0, 1], outputRange: [0.6, 2.2] });
+  const ringOpacity1 = ring1Anim.interpolate({ inputRange: [0, 0.5, 1], outputRange: [0.6, 0.3, 0] });
+  const ringScale2 = ring2Anim.interpolate({ inputRange: [0, 1], outputRange: [0.6, 2.2] });
+  const ringOpacity2 = ring2Anim.interpolate({ inputRange: [0, 0.5, 1], outputRange: [0.6, 0.3, 0] });
+
   return (
-    <View style={[styles.loadingContainer, { backgroundColor: C.background }]}>
-      <Text style={[styles.loadingLogo, { color: C.text }]}>MELODY</Text>
-      <Text style={[styles.loadingLogoAccent, { color: C.primary }]}>RUSH</Text>
-      <Animated.Text style={[styles.loadingLabel, { color: C.textMuted, opacity: pulseAnim }]}>
-        LOADING...
-      </Animated.Text>
+    <View style={[styles.loadingContainer, { backgroundColor: '#0A0A0A' }]}>
+      {/* Expanding rings behind icon */}
+      <View style={styles.iconWrapper}>
+        <Animated.View
+          style={[
+            styles.ring,
+            { borderColor: '#00C2FF', transform: [{ scale: ringScale1 }], opacity: ringOpacity1 },
+          ]}
+        />
+        <Animated.View
+          style={[
+            styles.ring,
+            { borderColor: '#00C2FF', transform: [{ scale: ringScale2 }], opacity: ringOpacity2 },
+          ]}
+        />
+        {/* Music note icon */}
+        <Animated.View
+          style={[
+            styles.iconCircle,
+            { backgroundColor: '#00C2FF18', borderColor: '#00C2FF40', opacity: pulseAnim },
+          ]}
+        >
+          <Text style={styles.musicNote}>♫</Text>
+        </Animated.View>
+      </View>
+
+      {/* Logo text */}
+      <Animated.View style={{ transform: [{ scale: scaleAnim }], alignItems: 'center' }}>
+        <Text style={styles.loadingLogo}>MELODY</Text>
+        <Text style={styles.loadingLogoAccent}>RUSH</Text>
+      </Animated.View>
+
+      {/* Loading dots */}
+      <View style={styles.dotsRow}>
+        {dotAnims.map((anim, i) => (
+          <Animated.View
+            key={i}
+            style={[styles.dot, { backgroundColor: '#00C2FF', opacity: anim }]}
+          />
+        ))}
+      </View>
     </View>
   );
 }
@@ -48,6 +131,7 @@ function AppInner() {
     async function init() {
       await loadInitialData();
       await audioManager.init();
+      await mobileAds().initialize();
       setIsReady(true);
 
       // Resume any conversion that was interrupted by the app closing
@@ -109,10 +193,38 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
+  iconWrapper: {
+    width: 140,
+    height: 140,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 32,
+  },
+  ring: {
+    position: 'absolute',
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    borderWidth: 1.5,
+  },
+  iconCircle: {
+    width: 96,
+    height: 96,
+    borderRadius: 48,
+    borderWidth: 1.5,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  musicNote: {
+    fontSize: 44,
+    color: '#00C2FF',
+    ...SHADOWS.neonBlue,
+  },
   loadingLogo: {
     fontSize: FONT_SIZE.displayXL,
     fontWeight: FONT_WEIGHT.bold,
     letterSpacing: 8,
+    color: '#FFFFFF',
     ...SHADOWS.neonBlue,
   },
   loadingLogoAccent: {
@@ -120,11 +232,17 @@ const styles = StyleSheet.create({
     fontWeight: FONT_WEIGHT.bold,
     letterSpacing: 8,
     marginTop: -12,
+    color: '#00C2FF',
     ...SHADOWS.neonBlue,
   },
-  loadingLabel: {
-    fontSize: FONT_SIZE.caption,
-    letterSpacing: 4,
-    marginTop: 32,
+  dotsRow: {
+    flexDirection: 'row',
+    gap: 10,
+    marginTop: 40,
+  },
+  dot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
   },
 });
