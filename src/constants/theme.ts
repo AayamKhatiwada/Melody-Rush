@@ -156,6 +156,20 @@ export const SHADOWS = {
     shadowRadius: 12,
     elevation: 10,
   },
+  neonGold: {
+    shadowColor: '#FFD93D',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.9,
+    shadowRadius: 18,
+    elevation: 12,
+  },
+  neonPurple: {
+    shadowColor: '#8B5CF6',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.9,
+    shadowRadius: 18,
+    elevation: 12,
+  },
 };
 
 export const ANIMATION = {

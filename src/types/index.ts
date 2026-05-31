@@ -5,6 +5,10 @@ export interface TileData {
   speed: number;
   type: 'normal' | 'long' | 'bomb' | 'golden';
   isHit: boolean;
+  holdLength?: number;
+  isHolding?: boolean;
+  holdProgress?: number;
+  holdCompleted?: boolean;
 }
 
 export interface GameSettings {
