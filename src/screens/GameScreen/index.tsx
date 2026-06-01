@@ -37,6 +37,7 @@ export const GameScreen = () => {
   const currentSpeedRef = useRef(BASE_SPEED);
   const timeElapsedRef = useRef(0);
   const spawnTimerRef = useRef(0);
+  const spawnedCountRef = useRef(0);
 
   const feverActiveRef = useRef(false);
   const feverTimerRef = useRef(0);
@@ -86,18 +87,25 @@ export const GameScreen = () => {
   };
 
   const spawnTile = () => {
-    const lane = Math.floor(Math.random() * LANES);
+    const melody = audioManager.melody || [];
+    const note = melody[spawnedCountRef.current % melody.length] || 'C4';
+    spawnedCountRef.current += 1;
+
+    // Map note to lane based on pitch
+    const noteToLaneMap: Record<string, number> = {
+      C4: 0, Db4: 0, D4: 0, Eb4: 0, E4: 0,
+      F4: 1, Gb4: 1, G4: 1, Ab4: 1, A4: 1, Bb4: 1, B4: 1,
+      C5: 2, Db5: 2, D5: 2,
+      Eb5: 3, E5: 3,
+    };
+    const lane = noteToLaneMap[note] !== undefined ? noteToLaneMap[note] : Math.floor(Math.random() * LANES);
     
     // Choose tile type based on probability weights
     const rand = Math.random();
-    let type: 'normal' | 'long' | 'bomb' | 'golden' = 'normal';
-    let holdLength = undefined;
+    let type: 'normal' | 'bomb' | 'golden' = 'normal';
 
-    if (rand < 0.70) {
+    if (rand < 0.85) {
       type = 'normal';
-    } else if (rand < 0.85) {
-      type = 'long';
-      holdLength = 320; // 320 pixels tail length
     } else if (rand < 0.95) {
       type = 'bomb';
     } else {
@@ -107,14 +115,10 @@ export const GameScreen = () => {
     const newTile: TileData = {
       id: Math.random().toString(),
       lane,
-      y: -180 - (holdLength || 0),
+      y: -180,
       speed: currentSpeedRef.current,
       type,
       isHit: false,
-      holdLength,
-      isHolding: false,
-      holdProgress: 0,
-      holdCompleted: false,
     };
     tilesRef.current = [...tilesRef.current, newTile];
     setTiles(tilesRef.current);
@@ -180,48 +184,6 @@ export const GameScreen = () => {
           return { ...tile, y: newY };
         }
 
-        // Long/hold tile logic
-        if (tile.type === 'long') {
-          if (tile.isHolding) {
-            // Early release check
-            if (!lanePressedRef.current[tile.lane]) {
-              missed = true;
-              return { ...tile, y: newY, isHolding: false };
-            }
-
-            // Award continuous score holding
-            const pointsGained = Math.max(1, Math.floor(deltaTime * 120));
-            const finalPoints = feverActiveRef.current ? pointsGained * 2 : pointsGained;
-            setTimeout(() => {
-              setScore(prev => prev + finalPoints);
-            }, 0);
-
-            // Completion check
-            const tailY = newY - (tile.holdLength || 320);
-            const hitZoneLineY = SCREEN_HEIGHT - 100;
-            if (tailY >= hitZoneLineY) {
-              setTimeout(() => {
-                showFeedback('perfect');
-                const bonus = 60;
-                const finalBonus = feverActiveRef.current ? bonus * 2 : bonus;
-                setScore(prev => prev + finalBonus);
-                setCombo(prev => prev + 1);
-                audioManager.playTapSound();
-              }, 0);
-              return { ...tile, y: newY, isHit: true, holdCompleted: true, isHolding: false };
-            }
-
-            return { ...tile, y: newY };
-          } else {
-            // Missed head of hold tile
-            const hitZoneLineY = SCREEN_HEIGHT - 100;
-            if (newY > hitZoneLineY + 20) {
-              missed = true;
-            }
-            return { ...tile, y: newY };
-          }
-        }
-
         // Standard/Golden missed checks
         if (newY > SCREEN_HEIGHT && !tile.isHit) {
           missed = true;
@@ -253,7 +215,7 @@ export const GameScreen = () => {
   const handleLaneTap = (laneIndex: number, tapY: number) => {
     let hitTileId: string | null = null;
     let hitTileY = -1000;
-    let hitTileType: 'normal' | 'long' | 'bomb' | 'golden' = 'normal';
+    let hitTileType: 'normal' | 'bomb' | 'golden' = 'normal';
 
     for (const tile of tilesRef.current) {
       if (
@@ -276,17 +238,6 @@ export const GameScreen = () => {
         Vibration.vibrate(400);
         audioManager.playMissSound();
         gameOver();
-        return;
-      }
-
-      if (hitTileType === 'long') {
-        // Start holding
-        tilesRef.current = tilesRef.current.map(t =>
-          t.id === hitTileId ? { ...t, isHolding: true } : t
-        );
-        setTiles(tilesRef.current);
-        audioManager.playTapSound();
-        Vibration.vibrate(40);
         return;
       }
 
@@ -400,47 +351,23 @@ export const GameScreen = () => {
                 <Text style={styles.goldenText}>⭐</Text>
               </View>
             );
-          } else if (tile.type === 'long') {
-            tileStyle.push(tile.isHolding ? styles.longTileActive : styles.longTile);
-            child = (
-              <View style={styles.longCenter}>
-                <Text style={styles.longText}>⏸</Text>
-              </View>
-            );
           }
 
           return (
-            <React.Fragment key={tile.id}>
-              {tile.type === 'long' && (
-                <View
-                  pointerEvents="none"
-                  style={[
-                    styles.holdTail,
-                    {
-                      left: tile.lane * LANE_WIDTH + 12,
-                      top: tile.y - (tile.holdLength || 320) + 65,
-                      width: LANE_WIDTH - 24,
-                      height: tile.holdLength || 320,
-                      backgroundColor: tile.isHolding ? 'rgba(50,255,126,0.35)' : 'rgba(50,255,126,0.15)',
-                      borderColor: tile.isHolding ? '#32FF7E' : 'rgba(50,255,126,0.6)',
-                    }
-                  ]}
-                />
-              )}
-              <View
-                pointerEvents="none"
-                style={[
-                  tileStyle,
-                  {
-                    left: tile.lane * LANE_WIDTH + 3,
-                    top: tile.y,
-                    width: LANE_WIDTH - 6,
-                  },
-                ]}
-              >
-                {child}
-              </View>
-            </React.Fragment>
+            <View
+              key={tile.id}
+              pointerEvents="none"
+              style={[
+                tileStyle,
+                {
+                  left: tile.lane * LANE_WIDTH + 3,
+                  top: tile.y,
+                  width: LANE_WIDTH - 6,
+                },
+              ]}
+            >
+              {child}
+            </View>
           );
         })}
 
@@ -607,33 +534,7 @@ const styles = StyleSheet.create({
     textShadowOffset: { width: 0, height: 0 },
     textShadowRadius: 8,
   },
-  longTile: {
-    backgroundColor: '#0D1C13',
-    borderColor: '#32FF7E',
-    ...SHADOWS.neonGreen,
-  },
-  longTileActive: {
-    backgroundColor: '#13351E',
-    borderColor: '#32FF7E',
-    ...SHADOWS.neonGreen,
-    shadowRadius: 22,
-  },
-  longCenter: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  longText: {
-    fontSize: 26,
-    color: '#32FF7E',
-  },
-  holdTail: {
-    position: 'absolute',
-    borderWidth: 1.5,
-    borderStyle: 'dashed',
-    borderRadius: RADIUS.sm,
-    zIndex: 4,
-  },
+
   hitZone: {
     position: 'absolute',
     bottom: 100,

@@ -3,12 +3,8 @@ export interface TileData {
   lane: number;
   y: number;
   speed: number;
-  type: 'normal' | 'long' | 'bomb' | 'golden';
+  type: 'normal' | 'bomb' | 'golden';
   isHit: boolean;
-  holdLength?: number;
-  isHolding?: boolean;
-  holdProgress?: number;
-  holdCompleted?: boolean;
 }
 
 export interface GameSettings {

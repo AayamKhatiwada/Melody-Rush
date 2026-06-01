@@ -101,6 +101,10 @@ class AudioManager {
     this.currentNoteIndex = 0;
   }
 
+  get melody(): string[] {
+    return this.activeMelody;
+  }
+
   private async preloadNotes(notes: string[]) {
     for (const note of new Set(notes)) {
       if (!this.loadedNotes[note] && NOTE_FILES[note]) {
@@ -163,18 +167,7 @@ class AudioManager {
   }
 
   async playTapSound() {
-    const { settings } = useGameStore.getState();
-    if (!settings.soundEnabled) return;
-    try {
-      const melody = this.activeMelody.length > 0 ? this.activeMelody : DEFAULT_MELODY;
-      const note = melody[this.currentNoteIndex % melody.length];
-      const sound = this.loadedNotes[note];
-      if (sound) {
-        await sound.setPositionAsync(0);
-        await sound.playAsync();
-      }
-      this.currentNoteIndex = (this.currentNoteIndex + 1) % melody.length;
-    } catch (_) {}
+    // No-op: tile press sound has been removed
   }
 
   async playMissSound() {
