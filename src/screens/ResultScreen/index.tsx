@@ -3,7 +3,7 @@ import { View, Text, TouchableOpacity, StyleSheet, Animated, ActivityIndicator }
 import { useGameStore } from '../../store';
 import { SPACING, RADIUS, FONT_SIZE, FONT_WEIGHT, SHADOWS, ColorPalette } from '../../constants/theme';
 import { useColors, useGlobalStyles } from '../../hooks/useTheme';
-import { BannerAd, BannerAdSize, TestIds, useRewardedAd } from 'react-native-google-mobile-ads';
+import { BannerAd, BannerAdSize, useRewardedAd } from 'react-native-google-mobile-ads';
 
 const makeStyles = (C: ColorPalette) => StyleSheet.create({
   container: {
@@ -125,7 +125,7 @@ export const ResultScreen = () => {
   const isNewHighScore = score >= stats.highScore && score > 0;
 
   const { isLoaded, isEarnedReward, load, show } = useRewardedAd(
-    adContinueUsed ? null : TestIds.REWARDED,
+    adContinueUsed ? null : 'ca-app-pub-2672637411464206/6806518860',
     { requestNonPersonalizedAdsOnly: true },
   );
 
@@ -151,16 +151,6 @@ export const ResultScreen = () => {
 
   return (
     <Animated.View style={[gs.container, styles.container, { opacity: fadeAnim }]}>
-      <View style={{ position: 'absolute', top: 40, alignItems: 'center', width: '100%', zIndex: 10 }}>
-        <BannerAd
-          unitId={TestIds.BANNER}
-          size={BannerAdSize.ANCHORED_ADAPTIVE_BANNER}
-          requestOptions={{
-            requestNonPersonalizedAdsOnly: true,
-          }}
-        />
-      </View>
-
       <Animated.View style={[{ alignItems: 'center', marginBottom: SPACING.xxxl }, { transform: [{ translateY: slideAnim }] }]}>
         <Text style={styles.gameOverLabel}>GAME OVER</Text>
         {isNewHighScore && (
@@ -215,7 +205,7 @@ export const ResultScreen = () => {
 
       <View style={{ position: 'absolute', bottom: 30, alignItems: 'center', width: '100%' }}>
         <BannerAd
-          unitId={TestIds.BANNER}
+          unitId="ca-app-pub-2672637411464206/8484392611"
           size={BannerAdSize.ANCHORED_ADAPTIVE_BANNER}
           requestOptions={{
             requestNonPersonalizedAdsOnly: true,

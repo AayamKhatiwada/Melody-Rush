@@ -13,6 +13,7 @@ import { prepareAudioFile } from '../../utils/audioConverter';
 import { useAudioAnalyzer } from '../../utils/AudioAnalyzer';
 import { audioManager } from '../../game/audio';
 import { useColors, useGlobalStyles } from '../../hooks/useTheme';
+import { BannerAd, BannerAdSize } from 'react-native-google-mobile-ads';
 
 // ─── Progress bar ─────────────────────────────────────────────────────────────
 
@@ -526,6 +527,16 @@ export const SettingsScreen = () => {
           </Text>
         </TouchableOpacity>
       </ScrollView>
+
+      <View style={{ alignItems: 'center', width: '100%', paddingBottom: 30 }}>
+        <BannerAd
+          unitId="ca-app-pub-2672637411464206/5007118973"
+          size={BannerAdSize.ANCHORED_ADAPTIVE_BANNER}
+          requestOptions={{
+            requestNonPersonalizedAdsOnly: true,
+          }}
+        />
+      </View>
     </Animated.View>
   );
 };

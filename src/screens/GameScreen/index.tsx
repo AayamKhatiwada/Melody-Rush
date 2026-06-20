@@ -13,7 +13,7 @@ import {
 } from '../../constants';
 import { TileData } from '../../types';
 import { audioManager } from '../../game/audio';
-import { BannerAd, BannerAdSize, TestIds } from 'react-native-google-mobile-ads';
+import { BannerAd, BannerAdSize } from 'react-native-google-mobile-ads';
 
 type FeedbackType = 'perfect' | 'good' | 'miss' | null;
 
@@ -379,7 +379,7 @@ export const GameScreen = () => {
 
       <View style={{ position: 'absolute', bottom: 0, alignItems: 'center', width: '100%', zIndex: 100 }}>
         <BannerAd
-          unitId={TestIds.BANNER}
+          unitId="ca-app-pub-2672637411464206/8484392611"
           size={BannerAdSize.ANCHORED_ADAPTIVE_BANNER}
           requestOptions={{
             requestNonPersonalizedAdsOnly: true,

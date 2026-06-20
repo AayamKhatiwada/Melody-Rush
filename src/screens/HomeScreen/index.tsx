@@ -3,7 +3,7 @@ import { View, Text, TouchableOpacity, StyleSheet, Animated } from 'react-native
 import { useGameStore } from '../../store';
 import { SPACING, FONT_SIZE, FONT_WEIGHT, SHADOWS, ColorPalette } from '../../constants/theme';
 import { useColors, useGlobalStyles } from '../../hooks/useTheme';
-import { BannerAd, BannerAdSize, TestIds } from 'react-native-google-mobile-ads';
+import { BannerAd, BannerAdSize } from 'react-native-google-mobile-ads';
 
 const makeStyles = (C: ColorPalette) => StyleSheet.create({
   container: {
@@ -98,16 +98,6 @@ export const HomeScreen = () => {
 
   return (
     <Animated.View style={[gs.container, styles.container, { opacity: fadeAnim }]}>
-      <View style={{ position: 'absolute', top: 40, alignItems: 'center', width: '100%', zIndex: 10 }}>
-        <BannerAd
-          unitId={TestIds.BANNER}
-          size={BannerAdSize.ANCHORED_ADAPTIVE_BANNER}
-          requestOptions={{
-            requestNonPersonalizedAdsOnly: true,
-          }}
-        />
-      </View>
-
       <View style={StyleSheet.absoluteFill} pointerEvents="none">
         {[0, 1, 2, 3].map(i => (
           <View key={i} style={[styles.bgLine, { left: `${(i + 1) * 20}%` as any }]} />
@@ -142,7 +132,7 @@ export const HomeScreen = () => {
 
       <View style={{ position: 'absolute', bottom: 30, alignItems: 'center', width: '100%' }}>
         <BannerAd
-          unitId={TestIds.BANNER}
+          unitId="ca-app-pub-2672637411464206/5007118973"
           size={BannerAdSize.ANCHORED_ADAPTIVE_BANNER}
           requestOptions={{
             requestNonPersonalizedAdsOnly: true,
