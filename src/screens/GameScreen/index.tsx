@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { View, StyleSheet, TouchableOpacity, Text, Animated, Vibration } from 'react-native';
+import { View, StyleSheet, TouchableOpacity, Text, Animated, Vibration, BackHandler } from 'react-native';
 import { useGameStore } from '../../store';
 import { COLORS, SPACING, RADIUS, FONT_SIZE, FONT_WEIGHT, SHADOWS } from '../../constants/theme';
 import {
@@ -49,6 +49,14 @@ export const GameScreen = () => {
   const feedbackOpacity = useRef(new Animated.Value(0)).current;
 
   const prevComboRef = useRef(0);
+
+  useEffect(() => {
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+      setGameState('idle');
+      return true;
+    });
+    return () => sub.remove();
+  }, []);
 
   useEffect(() => {
     if (combo > 0 && combo !== prevComboRef.current) {

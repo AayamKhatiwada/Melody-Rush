@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef } from 'react';
 import {
   View, Text, Switch, StyleSheet, TouchableOpacity,
-  Animated, ScrollView,
+  Animated, ScrollView, BackHandler,
 } from 'react-native';
 import * as DocumentPicker from 'expo-document-picker';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -294,6 +294,14 @@ export const SettingsScreen = () => {
       Animated.timing(fadeAnim, { toValue: 1, duration: 350, useNativeDriver: true }),
       Animated.spring(slideAnim, { toValue: 0, useNativeDriver: true, speed: 14, bounciness: 6 }),
     ]).start();
+  }, []);
+
+  useEffect(() => {
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+      setGameState('splash');
+      return true;
+    });
+    return () => sub.remove();
   }, []);
 
   useEffect(() => {
