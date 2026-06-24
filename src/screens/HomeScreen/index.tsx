@@ -137,6 +137,7 @@ export const HomeScreen = () => {
           requestOptions={{
             requestNonPersonalizedAdsOnly: true,
           }}
+          onAdFailedToLoad={(error) => console.warn('[HomeScreen BannerAd]', error.code, error.message)}
         />
       </View>
 

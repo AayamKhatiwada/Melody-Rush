@@ -219,6 +219,7 @@ export const ResultScreen = () => {
           requestOptions={{
             requestNonPersonalizedAdsOnly: true,
           }}
+          onAdFailedToLoad={(error) => console.warn('[ResultScreen BannerAd]', error.code, error.message)}
         />
       </View>
 

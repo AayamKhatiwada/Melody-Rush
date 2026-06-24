@@ -392,6 +392,7 @@ export const GameScreen = () => {
           requestOptions={{
             requestNonPersonalizedAdsOnly: true,
           }}
+          onAdFailedToLoad={(error) => console.warn('[GameScreen BannerAd]', error.code, error.message)}
         />
       </View>
     </View>

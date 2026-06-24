@@ -543,6 +543,7 @@ export const SettingsScreen = () => {
           requestOptions={{
             requestNonPersonalizedAdsOnly: true,
           }}
+          onAdFailedToLoad={(error) => console.warn('[SettingsScreen BannerAd]', error.code, error.message)}
         />
       </View>
     </Animated.View>
