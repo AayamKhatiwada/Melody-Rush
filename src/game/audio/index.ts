@@ -120,10 +120,10 @@ class AudioManager {
     const { settings } = useGameStore.getState();
     if (!settings.musicEnabled) return;
 
-    const desiredUri = this.customBackgroundUri
-      ?? 'https://cdn.freesound.org/previews/573/573516_12891390-lq.mp3';
+    const desiredUri = this.customBackgroundUri ?? null;
 
-    if (this.loadedBackgroundUri !== desiredUri || !this.backgroundMusic) {
+    const sourceKey = desiredUri ?? '__default__';
+    if (this.loadedBackgroundUri !== sourceKey || !this.backgroundMusic) {
       const old = this.backgroundMusic;
       this.backgroundMusic = null;
       this.loadedBackgroundUri = null;
@@ -134,9 +134,12 @@ class AudioManager {
       }
 
       try {
-        const { sound } = await Audio.Sound.createAsync({ uri: desiredUri });
+        const source = desiredUri
+          ? { uri: desiredUri }
+          : require('../../assets/sounds/default_bg.mp3');
+        const { sound } = await Audio.Sound.createAsync(source);
         this.backgroundMusic = sound;
-        this.loadedBackgroundUri = desiredUri;
+        this.loadedBackgroundUri = sourceKey;
         await sound.setIsLoopingAsync(true);
         await sound.setVolumeAsync(BG_MUSIC_VOLUME);
       } catch (e) {
