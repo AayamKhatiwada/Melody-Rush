@@ -1,9 +1,10 @@
-import React, { useEffect, useMemo, useRef } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Animated, ActivityIndicator, BackHandler } from 'react-native';
 import { useGameStore } from '../../store';
 import { SPACING, RADIUS, FONT_SIZE, FONT_WEIGHT, SHADOWS, ColorPalette } from '../../constants/theme';
 import { useColors, useGlobalStyles } from '../../hooks/useTheme';
-import { BannerAd, BannerAdSize, useRewardedAd } from 'react-native-google-mobile-ads';
+import { BannerAd, BannerAdSize } from 'react-native-google-mobile-ads';
+import { isRewardedAdLoaded, isRewardEarned, showRewardedAd, subscribe, preloadRewardedAd, resetRewardState } from '../../utils/rewardedAd';
 
 const makeStyles = (C: ColorPalette) => StyleSheet.create({
   container: {
@@ -124,14 +125,21 @@ export const ResultScreen = () => {
   const styles = useMemo(() => makeStyles(C), [C]);
   const isNewHighScore = score >= stats.highScore && score > 0;
 
-  const { isLoaded, isEarnedReward, load, show } = useRewardedAd(
-    adContinueUsed ? null : 'ca-app-pub-2672637411464206/6806518860',
-    { requestNonPersonalizedAdsOnly: true },
-  );
+  const [adLoaded, setAdLoaded] = useState(isRewardedAdLoaded());
 
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(40)).current;
   const scoreScale = useRef(new Animated.Value(0.6)).current;
+
+  useEffect(() => {
+    resetRewardState();
+    if (!adContinueUsed) preloadRewardedAd();
+    const unsub = subscribe(() => {
+      setAdLoaded(isRewardedAdLoaded());
+      if (isRewardEarned()) continueGame();
+    });
+    return unsub;
+  }, []);
 
   useEffect(() => {
     const sub = BackHandler.addEventListener('hardwareBackPress', () => {
@@ -149,14 +157,6 @@ export const ResultScreen = () => {
       Animated.spring(scoreScale, { toValue: 1, useNativeDriver: true, speed: 10, bounciness: 10, delay: 200 }),
     ]).start();
   }, []);
-
-  useEffect(() => {
-    if (!adContinueUsed) load();
-  }, [adContinueUsed]);
-
-  useEffect(() => {
-    if (isEarnedReward) continueGame();
-  }, [isEarnedReward]);
 
   return (
     <Animated.View style={[gs.container, styles.container, { opacity: fadeAnim }]}>
@@ -193,14 +193,14 @@ export const ResultScreen = () => {
       <Animated.View style={[styles.buttonSection, { transform: [{ translateY: slideAnim }] }]}>
         {!adContinueUsed && (
           <TouchableOpacity
-            style={[styles.watchAdButton, !isLoaded && styles.watchAdDisabled]}
+            style={[styles.watchAdButton, !adLoaded && styles.watchAdDisabled]}
             activeOpacity={0.8}
-            disabled={!isLoaded}
-            onPress={() => show()}
+            disabled={!adLoaded}
+            onPress={() => showRewardedAd()}
           >
-            {!isLoaded && <ActivityIndicator size="small" color={C.warning} />}
+            {!adLoaded && <ActivityIndicator size="small" color={C.warning} />}
             <Text style={styles.watchAdText}>
-              {!isLoaded ? 'LOADING AD...' : 'WATCH AD TO CONTINUE'}
+              {!adLoaded ? 'LOADING AD...' : 'WATCH AD TO CONTINUE'}
             </Text>
           </TouchableOpacity>
         )}
