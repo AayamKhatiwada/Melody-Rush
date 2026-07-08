@@ -1,6 +1,6 @@
 import { StatusBar } from 'expo-status-bar';
 import React, { useEffect, useRef, useState } from 'react';
-import { StyleSheet, View, Text, Animated } from 'react-native';
+import { StyleSheet, View, Text, Animated, BackHandler } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import mobileAds from 'react-native-google-mobile-ads';
 import * as FileSystem from 'expo-file-system/src/legacy';
@@ -126,6 +126,21 @@ function AppInner() {
   const C = useColors();
   const { analyze } = useAudioAnalyzer();
   const [isReady, setIsReady] = useState(false);
+
+  // Global fallback: screens register their own back handlers (which run
+  // first, since they are added later), but if none handles the press,
+  // go home instead of letting Android close the app. Only on the home
+  // screen does back keep its default exit behavior.
+  useEffect(() => {
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+      const { gameState, setGameState, resetGame } = useGameStore.getState();
+      if (gameState === 'splash' || gameState === 'idle') return false;
+      resetGame();
+      setGameState('idle');
+      return true;
+    });
+    return () => sub.remove();
+  }, []);
 
   useEffect(() => {
     async function init() {

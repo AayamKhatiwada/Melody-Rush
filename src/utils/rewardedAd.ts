@@ -6,6 +6,7 @@ let rewardedAd: RewardedAd | null = null;
 let loaded = false;
 let earned = false;
 let listeners: Array<() => void> = [];
+let closedListeners: Array<(rewardEarned: boolean) => void> = [];
 
 function createAd() {
   loaded = false;
@@ -25,9 +26,13 @@ function createAd() {
   });
 
   rewardedAd.addAdEventListener(AdEventType.CLOSED, () => {
+    const rewardEarned = earned;
     // Preload next ad after this one is closed
     createAd();
     rewardedAd?.load();
+    // Notify after the ad is fully dismissed so the game only resumes
+    // once the user is actually back on screen
+    closedListeners.forEach(fn => fn(rewardEarned));
   });
 
   rewardedAd.addAdEventListener(AdEventType.ERROR, () => {
@@ -66,5 +71,12 @@ export function subscribe(fn: () => void) {
   listeners.push(fn);
   return () => {
     listeners = listeners.filter(l => l !== fn);
+  };
+}
+
+export function subscribeToAdClosed(fn: (rewardEarned: boolean) => void) {
+  closedListeners.push(fn);
+  return () => {
+    closedListeners = closedListeners.filter(l => l !== fn);
   };
 }

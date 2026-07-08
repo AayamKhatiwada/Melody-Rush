@@ -11,7 +11,6 @@ interface GameState {
   gameState: 'idle' | 'playing' | 'paused' | 'gameover' | 'splash';
   settings: GameSettings;
   stats: GameStats;
-  adContinueUsed: boolean;
 
   // Conversion state — lives in the store so it persists across navigation
   conversionStatus: ConversionStatus;
@@ -54,7 +53,6 @@ export const useGameStore = create<GameState>((set, get) => ({
   gameState: 'splash',
   settings: defaultSettings,
   stats: defaultStats,
-  adContinueUsed: false,
 
   conversionStatus: 'idle',
   conversionProgress: 0,
@@ -82,8 +80,8 @@ export const useGameStore = create<GameState>((set, get) => ({
     AsyncStorage.setItem('stats', JSON.stringify(stats));
     return { stats };
   }),
-  resetGame: () => set({ score: 0, combo: 0, maxCombo: 0, adContinueUsed: false }),
-  continueGame: () => set({ gameState: 'playing', adContinueUsed: true }),
+  resetGame: () => set({ score: 0, combo: 0, maxCombo: 0 }),
+  continueGame: () => set({ gameState: 'playing' }),
   loadInitialData: async () => {
     try {
       const storedSettings = await AsyncStorage.getItem('settings');

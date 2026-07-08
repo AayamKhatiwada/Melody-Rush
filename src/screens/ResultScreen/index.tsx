@@ -4,7 +4,7 @@ import { useGameStore } from '../../store';
 import { SPACING, RADIUS, FONT_SIZE, FONT_WEIGHT, SHADOWS, ColorPalette } from '../../constants/theme';
 import { useColors, useGlobalStyles } from '../../hooks/useTheme';
 import { BannerAd, BannerAdSize } from 'react-native-google-mobile-ads';
-import { isRewardedAdLoaded, isRewardEarned, showRewardedAd, subscribe, preloadRewardedAd, resetRewardState } from '../../utils/rewardedAd';
+import { isRewardedAdLoaded, showRewardedAd, subscribe, subscribeToAdClosed, preloadRewardedAd, resetRewardState } from '../../utils/rewardedAd';
 
 const makeStyles = (C: ColorPalette) => StyleSheet.create({
   container: {
@@ -119,7 +119,7 @@ const makeStyles = (C: ColorPalette) => StyleSheet.create({
 });
 
 export const ResultScreen = () => {
-  const { score, maxCombo, stats, setGameState, resetGame, continueGame, adContinueUsed } = useGameStore();
+  const { score, maxCombo, stats, setGameState, resetGame, continueGame } = useGameStore();
   const C = useColors();
   const gs = useGlobalStyles();
   const styles = useMemo(() => makeStyles(C), [C]);
@@ -133,12 +133,19 @@ export const ResultScreen = () => {
 
   useEffect(() => {
     resetRewardState();
-    if (!adContinueUsed) preloadRewardedAd();
-    const unsub = subscribe(() => {
+    preloadRewardedAd();
+    const unsubLoad = subscribe(() => {
       setAdLoaded(isRewardedAdLoaded());
-      if (isRewardEarned()) continueGame();
     });
-    return unsub;
+    // Resume only after the ad is dismissed, so the game loop
+    // doesn't run (and end) behind the ad
+    const unsubClosed = subscribeToAdClosed(rewardEarned => {
+      if (rewardEarned) continueGame();
+    });
+    return () => {
+      unsubLoad();
+      unsubClosed();
+    };
   }, []);
 
   useEffect(() => {
@@ -191,19 +198,17 @@ export const ResultScreen = () => {
       </Animated.View>
 
       <Animated.View style={[styles.buttonSection, { transform: [{ translateY: slideAnim }] }]}>
-        {!adContinueUsed && (
-          <TouchableOpacity
-            style={[styles.watchAdButton, !adLoaded && styles.watchAdDisabled]}
-            activeOpacity={0.8}
-            disabled={!adLoaded}
-            onPress={() => showRewardedAd()}
-          >
-            {!adLoaded && <ActivityIndicator size="small" color={C.warning} />}
-            <Text style={styles.watchAdText}>
-              {!adLoaded ? 'LOADING AD...' : 'WATCH AD TO CONTINUE'}
-            </Text>
-          </TouchableOpacity>
-        )}
+        <TouchableOpacity
+          style={[styles.watchAdButton, !adLoaded && styles.watchAdDisabled]}
+          activeOpacity={0.8}
+          disabled={!adLoaded}
+          onPress={() => showRewardedAd()}
+        >
+          {!adLoaded && <ActivityIndicator size="small" color={C.warning} />}
+          <Text style={styles.watchAdText}>
+            {!adLoaded ? 'LOADING AD...' : 'WATCH AD TO CONTINUE'}
+          </Text>
+        </TouchableOpacity>
         <TouchableOpacity style={gs.primaryButton} activeOpacity={0.85} onPress={() => { resetGame(); setGameState('playing'); }}>
           <Text style={[gs.buttonText, { letterSpacing: 3 }]}>RETRY</Text>
         </TouchableOpacity>

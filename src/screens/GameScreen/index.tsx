@@ -25,12 +25,14 @@ const FEEDBACK_COLORS: Record<string, string> = {
 };
 
 export const GameScreen = () => {
-  const { setGameState, setScore, setCombo, combo, score, stats, updateStats } = useGameStore();
+  const { setGameState, setScore, setCombo, combo, score, stats, updateStats, resetGame } = useGameStore();
 
   const [tiles, setTiles] = useState<TileData[]>([]);
   const [feedback, setFeedback] = useState<FeedbackType>(null);
   const [missFlash, setMissFlash] = useState(false);
   const [feverActive, setFeverActive] = useState(false);
+  const [isPaused, setIsPaused] = useState(false);
+  const isPausedRef = useRef(false);
 
   const tilesRef = useRef<TileData[]>([]);
   const requestRef = useRef<number>(0);
@@ -51,10 +53,38 @@ export const GameScreen = () => {
 
   const prevComboRef = useRef(0);
 
+  const pauseGame = () => {
+    if (isPausedRef.current) return;
+    isPausedRef.current = true;
+    setIsPaused(true);
+    stopGameLoop();
+    audioManager.pauseMusic();
+  };
+
+  const resumeGame = () => {
+    if (!isPausedRef.current) return;
+    isPausedRef.current = false;
+    setIsPaused(false);
+    lastTimeRef.current = performance.now();
+    requestRef.current = requestAnimationFrame(gameLoop);
+    audioManager.resumeMusic();
+  };
+
+  const quitGame = () => {
+    stopGameLoop();
+    audioManager.stopMusic();
+    resetGame();
+    setGameState('idle');
+  };
+
   useEffect(() => {
     preloadRewardedAd();
     const sub = BackHandler.addEventListener('hardwareBackPress', () => {
-      setGameState('idle');
+      if (isPausedRef.current) {
+        resumeGame();
+      } else {
+        pauseGame();
+      }
       return true;
     });
     return () => sub.remove();
@@ -152,8 +182,11 @@ export const GameScreen = () => {
   };
 
   const gameLoop = (time: number) => {
+    if (isPausedRef.current) return;
     if (!lastTimeRef.current) lastTimeRef.current = time;
-    const deltaTime = (time - lastTimeRef.current) / 1000;
+    // Clamp so a long gap between frames (ad shown, app backgrounded)
+    // can't fling tiles past the bottom and trigger an instant game over
+    const deltaTime = Math.min((time - lastTimeRef.current) / 1000, 0.1);
     lastTimeRef.current = time;
 
     // Fever timer update
@@ -210,7 +243,7 @@ export const GameScreen = () => {
       return;
     }
 
-    if (useGameStore.getState().gameState === 'playing') {
+    if (useGameStore.getState().gameState === 'playing' && !isPausedRef.current) {
       requestRef.current = requestAnimationFrame(gameLoop);
     }
   };
@@ -387,6 +420,22 @@ export const GameScreen = () => {
         </View>
       </View>
 
+      {/* Pause / quit confirmation overlay */}
+      {isPaused && (
+        <View style={styles.pauseOverlay}>
+          <View style={styles.pauseCard}>
+            <Text style={styles.pauseTitle}>PAUSED</Text>
+            <Text style={styles.pauseMessage}>Do you want to quit?</Text>
+            <TouchableOpacity style={styles.resumeButton} activeOpacity={0.85} onPress={resumeGame}>
+              <Text style={styles.resumeButtonText}>RESUME</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.quitButton} activeOpacity={0.75} onPress={quitGame}>
+              <Text style={styles.quitButtonText}>QUIT</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
+
       <View style={{ position: 'absolute', bottom: 0, alignItems: 'center', width: '100%', zIndex: 100 }}>
         <BannerAd
           unitId="ca-app-pub-2672637411464206/8484392611"
@@ -546,6 +595,65 @@ const styles = StyleSheet.create({
     textShadowRadius: 8,
   },
 
+  pauseOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0,0,0,0.75)',
+    zIndex: 200,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: SPACING.xl,
+  },
+  pauseCard: {
+    width: '100%',
+    backgroundColor: COLORS.background,
+    borderWidth: 1.5,
+    borderColor: COLORS.primary,
+    borderRadius: RADIUS.lg,
+    paddingVertical: SPACING.xxl,
+    paddingHorizontal: SPACING.xl,
+    alignItems: 'center',
+    ...SHADOWS.neonBlue,
+  },
+  pauseTitle: {
+    fontSize: FONT_SIZE.h1,
+    fontWeight: FONT_WEIGHT.bold,
+    color: COLORS.text,
+    letterSpacing: 4,
+  },
+  pauseMessage: {
+    fontSize: FONT_SIZE.bodyMd,
+    color: COLORS.textMuted,
+    marginTop: SPACING.sm,
+    marginBottom: SPACING.xl,
+  },
+  resumeButton: {
+    width: '100%',
+    paddingVertical: SPACING.lg,
+    borderRadius: RADIUS.lg,
+    alignItems: 'center',
+    backgroundColor: COLORS.primary,
+  },
+  resumeButtonText: {
+    fontSize: FONT_SIZE.bodyMd,
+    fontWeight: FONT_WEIGHT.bold,
+    color: COLORS.background,
+    letterSpacing: 3,
+  },
+  quitButton: {
+    width: '100%',
+    paddingVertical: SPACING.lg,
+    borderRadius: RADIUS.lg,
+    alignItems: 'center',
+    marginTop: SPACING.md,
+    borderWidth: 1.5,
+    borderColor: COLORS.miss,
+  },
+  quitButtonText: {
+    fontSize: FONT_SIZE.bodyMd,
+    fontWeight: FONT_WEIGHT.bold,
+    color: COLORS.miss,
+    letterSpacing: 3,
+  },
   hitZone: {
     position: 'absolute',
     bottom: 100,
