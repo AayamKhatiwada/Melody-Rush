@@ -1,10 +1,12 @@
 import { RewardedAd, RewardedAdEventType, AdEventType } from 'react-native-google-mobile-ads';
 
 const AD_UNIT_ID = 'ca-app-pub-2672637411464206/6806518860';
+const MAX_LOAD_RETRIES = 5;
 
 let rewardedAd: RewardedAd | null = null;
 let loaded = false;
 let earned = false;
+let retryCount = 0;
 let listeners: Array<() => void> = [];
 let closedListeners: Array<(rewardEarned: boolean) => void> = [];
 
@@ -17,6 +19,7 @@ function createAd() {
 
   rewardedAd.addAdEventListener(RewardedAdEventType.LOADED, () => {
     loaded = true;
+    retryCount = 0;
     listeners.forEach(fn => fn());
   });
 
@@ -36,6 +39,8 @@ function createAd() {
   });
 
   rewardedAd.addAdEventListener(AdEventType.ERROR, () => {
+    if (retryCount >= MAX_LOAD_RETRIES) return;
+    retryCount += 1;
     // Retry after a delay
     setTimeout(() => {
       createAd();

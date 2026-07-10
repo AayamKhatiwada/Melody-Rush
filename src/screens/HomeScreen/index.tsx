@@ -104,6 +104,17 @@ export const HomeScreen = () => {
         ))}
       </View>
 
+      <View style={{ alignItems: 'center' }}>
+        <BannerAd
+          unitId="ca-app-pub-2672637411464206/9278549209"
+          size={BannerAdSize.ANCHORED_ADAPTIVE_BANNER}
+          requestOptions={{
+            requestNonPersonalizedAdsOnly: true,
+          }}
+          onAdFailedToLoad={(error) => console.warn('[HomeScreen TopBannerAd]', error.code, error.message)}
+        />
+      </View>
+
       <View style={{ alignItems: 'center', marginBottom: SPACING.xxxl + SPACING.xl }}>
         <Animated.Text style={[styles.logoText, { opacity: glowAnim }]}>MELODY</Animated.Text>
         <Text style={styles.logoAccent}>RUSH</Text>

@@ -15,6 +15,7 @@ import { TileData } from '../../types';
 import { audioManager } from '../../game/audio';
 import { BannerAd, BannerAdSize } from 'react-native-google-mobile-ads';
 import { preloadRewardedAd } from '../../utils/rewardedAd';
+import { preloadInterstitialAd } from '../../utils/interstitialAd';
 
 type FeedbackType = 'perfect' | 'good' | 'miss' | null;
 
@@ -79,6 +80,7 @@ export const GameScreen = () => {
 
   useEffect(() => {
     preloadRewardedAd();
+    preloadInterstitialAd();
     const sub = BackHandler.addEventListener('hardwareBackPress', () => {
       if (isPausedRef.current) {
         resumeGame();

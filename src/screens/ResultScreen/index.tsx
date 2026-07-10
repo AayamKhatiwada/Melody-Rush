@@ -5,6 +5,7 @@ import { SPACING, RADIUS, FONT_SIZE, FONT_WEIGHT, SHADOWS, ColorPalette } from '
 import { useColors, useGlobalStyles } from '../../hooks/useTheme';
 import { BannerAd, BannerAdSize } from 'react-native-google-mobile-ads';
 import { isRewardedAdLoaded, showRewardedAd, subscribe, subscribeToAdClosed, preloadRewardedAd, resetRewardState } from '../../utils/rewardedAd';
+import { showInterstitialAd } from '../../utils/interstitialAd';
 
 const makeStyles = (C: ColorPalette) => StyleSheet.create({
   container: {
@@ -132,6 +133,7 @@ export const ResultScreen = () => {
   const scoreScale = useRef(new Animated.Value(0.6)).current;
 
   useEffect(() => {
+    showInterstitialAd();
     resetRewardState();
     preloadRewardedAd();
     const unsubLoad = subscribe(() => {

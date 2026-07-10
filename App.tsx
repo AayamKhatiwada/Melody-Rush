@@ -13,6 +13,7 @@ import { audioManager } from './src/game/audio';
 import { FONT_SIZE, FONT_WEIGHT, SHADOWS } from './src/constants/theme';
 import { useColors } from './src/hooks/useTheme';
 import { AudioAnalyzerProvider, useAudioAnalyzer } from './src/utils/AudioAnalyzer';
+import { showAppOpenAdOnColdStart, initAppOpenAdOnResume } from './src/utils/appOpenAd';
 
 function LoadingScreen() {
   const pulseAnim = useRef(new Animated.Value(0.5)).current;
@@ -132,6 +133,10 @@ function AppInner() {
   // go home instead of letting Android close the app. Only on the home
   // screen does back keep its default exit behavior.
   useEffect(() => {
+    return initAppOpenAdOnResume();
+  }, []);
+
+  useEffect(() => {
     const sub = BackHandler.addEventListener('hardwareBackPress', () => {
       const { gameState, setGameState, resetGame } = useGameStore.getState();
       if (gameState === 'splash' || gameState === 'idle') return false;
@@ -148,6 +153,7 @@ function AppInner() {
       await audioManager.init();
       await mobileAds().initialize();
       setIsReady(true);
+      showAppOpenAdOnColdStart();
 
       // Resume any conversion that was interrupted by the app closing
       try {
