@@ -2,7 +2,7 @@ import { AppState, AppStateStatus } from 'react-native';
 import { AppOpenAd, AdEventType } from 'react-native-google-mobile-ads';
 import { isAdShowing, setAdShowing } from './adState';
 
-const AD_UNIT_ID = 'ca-app-pub-2672637411464206~6595532810';
+const AD_UNIT_ID = 'ca-app-pub-2672637411464206/2291458703';
 const MAX_LOAD_RETRIES = 5;
 
 let appOpenAd: AppOpenAd | null = null;
@@ -21,6 +21,7 @@ function createAd() {
   appOpenAd.addAdEventListener(AdEventType.LOADED, () => {
     loaded = true;
     retryCount = 0;
+    console.warn('[AppOpenAd] loaded');
     if (showOnLoad) {
       showOnLoad = false;
       showAppOpenAd();
@@ -40,10 +41,11 @@ function createAd() {
     appOpenAd?.load();
   });
 
-  appOpenAd.addAdEventListener(AdEventType.ERROR, () => {
+  appOpenAd.addAdEventListener(AdEventType.ERROR, (error: any) => {
     loaded = false;
     isShowingAppOpenAd = false;
     setAdShowing(false);
+    console.warn('[AppOpenAd] failed to load', error?.code, error?.message);
     if (retryCount >= MAX_LOAD_RETRIES) return;
     retryCount += 1;
     setTimeout(() => {
@@ -59,10 +61,15 @@ export function preloadAppOpenAd() {
 }
 
 export function showAppOpenAd() {
-  // Don't show over another ad (interstitial/rewarded) or while already showing
-  if (loaded && appOpenAd && !isShowingAppOpenAd && !isAdShowing()) {
-    appOpenAd.show();
+  if (!loaded || !appOpenAd) {
+    console.warn('[AppOpenAd] show skipped: not loaded');
+    return;
   }
+  if (isShowingAppOpenAd || isAdShowing()) {
+    console.warn('[AppOpenAd] show skipped: another ad is showing');
+    return;
+  }
+  appOpenAd.show().catch((err: any) => console.warn('[AppOpenAd] show() rejected', err));
 }
 
 // Preloads (if needed) and shows as soon as the ad finishes loading.
