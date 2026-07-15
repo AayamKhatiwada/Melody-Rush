@@ -1,5 +1,6 @@
 import { InterstitialAd, AdEventType } from 'react-native-google-mobile-ads';
 import { setAdShowing } from './adState';
+import { useGameStore } from '../store';
 
 const AD_UNIT_ID = 'ca-app-pub-2672637411464206/5179522099';
 const MAX_LOAD_RETRIES = 5;
@@ -53,6 +54,7 @@ export function isInterstitialAdLoaded() {
 }
 
 export function showInterstitialAd() {
+  if (useGameStore.getState().adsRemoved) return;
   if (loaded && interstitialAd) {
     interstitialAd.show();
   }

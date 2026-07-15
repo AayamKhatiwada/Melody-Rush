@@ -1,14 +1,16 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Animated, ActivityIndicator, BackHandler } from 'react-native';
-import { useGameStore } from '../../store';
+import { useGameStore, effectiveStreak } from '../../store';
 import { SPACING, RADIUS, FONT_SIZE, FONT_WEIGHT, SHADOWS, ColorPalette } from '../../constants/theme';
 import { useColors, useGlobalStyles } from '../../hooks/useTheme';
-import { BannerAd, BannerAdSize } from 'react-native-google-mobile-ads';
+import { AdBanner } from '../../components/AdBanner';
 import { isRewardedAdLoaded, showRewardedAd, subscribe, subscribeToAdClosed, preloadRewardedAd, resetRewardState } from '../../utils/rewardedAd';
 import { showInterstitialAd } from '../../utils/interstitialAd';
+import { ACHIEVEMENT_MAP } from '../../constants/achievements';
 
 const makeStyles = (C: ColorPalette) => StyleSheet.create({
-  container: {
+  content: {
+    flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: SPACING.xl,
@@ -99,13 +101,40 @@ const makeStyles = (C: ColorPalette) => StyleSheet.create({
     gap: SPACING.sm,
   },
   watchAdText: {
-    fontSize: FONT_SIZE.body,
+    fontSize: FONT_SIZE.bodyMd,
     fontWeight: FONT_WEIGHT.bold,
     color: C.warning,
     letterSpacing: 2,
   },
   watchAdDisabled: {
     opacity: 0.4,
+  },
+  achievementToast: {
+    width: '100%',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.md,
+    backgroundColor: 'rgba(50,255,126,0.10)',
+    borderWidth: 1,
+    borderColor: C.success,
+    borderRadius: RADIUS.md,
+    paddingVertical: SPACING.md,
+    paddingHorizontal: SPACING.lg,
+    marginBottom: SPACING.sm,
+  },
+  achievementToastIcon: {
+    fontSize: FONT_SIZE.h3,
+  },
+  achievementToastTitle: {
+    color: C.success,
+    fontSize: FONT_SIZE.caption,
+    fontWeight: FONT_WEIGHT.bold,
+    letterSpacing: 2,
+  },
+  achievementToastName: {
+    color: C.text,
+    fontSize: FONT_SIZE.bodyMd,
+    fontWeight: FONT_WEIGHT.semibold,
   },
   bottomAccent: {
     position: 'absolute',
@@ -120,11 +149,23 @@ const makeStyles = (C: ColorPalette) => StyleSheet.create({
 });
 
 export const ResultScreen = () => {
-  const { score, maxCombo, stats, setGameState, resetGame, continueGame } = useGameStore();
+  const {
+    score, maxCombo, stats, setGameState, resetGame, continueGame,
+    gameMode, startGame, daily, adsRemoved,
+    pendingAchievements, clearPendingAchievements,
+  } = useGameStore();
   const C = useColors();
   const gs = useGlobalStyles();
   const styles = useMemo(() => makeStyles(C), [C]);
+  const isDaily = gameMode === 'daily';
   const isNewHighScore = score >= stats.highScore && score > 0;
+  const streak = effectiveStreak(daily);
+
+  // Snapshot unlocked achievements for this screen, then clear the queue
+  const [unlockedNow] = useState(pendingAchievements);
+  useEffect(() => {
+    if (pendingAchievements.length > 0) clearPendingAchievements();
+  }, []);
 
   const [adLoaded, setAdLoaded] = useState(isRewardedAdLoaded());
 
@@ -133,7 +174,7 @@ export const ResultScreen = () => {
   const scoreScale = useRef(new Animated.Value(0.6)).current;
 
   useEffect(() => {
-    showInterstitialAd();
+    if (!adsRemoved) showInterstitialAd();
     resetRewardState();
     preloadRewardedAd();
     const unsubLoad = subscribe(() => {
@@ -168,7 +209,14 @@ export const ResultScreen = () => {
   }, []);
 
   return (
-    <Animated.View style={[gs.container, styles.container, { opacity: fadeAnim }]}>
+    <Animated.View style={[gs.container, { opacity: fadeAnim }]}>
+      <AdBanner
+        unitId="ca-app-pub-2672637411464206/9278549209"
+        placement="ResultScreen TopBannerAd"
+        position="top"
+      />
+
+      <View style={styles.content}>
       <Animated.View style={[{ alignItems: 'center', marginBottom: SPACING.xxxl }, { transform: [{ translateY: slideAnim }] }]}>
         <Text style={styles.gameOverLabel}>GAME OVER</Text>
         {isNewHighScore && (
@@ -176,7 +224,30 @@ export const ResultScreen = () => {
             <Text style={styles.newHighScoreText}>NEW RECORD</Text>
           </View>
         )}
+        {isDaily && streak > 0 && (
+          <View style={styles.newHighScoreBadge}>
+            <Text style={styles.newHighScoreText}>🔥 {streak}-DAY STREAK</Text>
+          </View>
+        )}
       </Animated.View>
+
+      {unlockedNow.length > 0 && (
+        <Animated.View style={{ width: '100%', transform: [{ translateY: slideAnim }] }}>
+          {unlockedNow.map(id => {
+            const a = ACHIEVEMENT_MAP[id];
+            if (!a) return null;
+            return (
+              <View key={id} style={styles.achievementToast}>
+                <Text style={styles.achievementToastIcon}>{a.icon}</Text>
+                <View>
+                  <Text style={styles.achievementToastTitle}>ACHIEVEMENT UNLOCKED</Text>
+                  <Text style={styles.achievementToastName}>{a.title}</Text>
+                </View>
+              </View>
+            );
+          })}
+        </Animated.View>
+      )}
 
       <Animated.View style={[gs.glassCard, styles.scoreCard, { transform: [{ scale: scoreScale }] }]}>
         <View style={styles.mainScoreRow}>
@@ -193,8 +264,10 @@ export const ResultScreen = () => {
           </View>
           <View style={styles.statDivider} />
           <View style={styles.statItem}>
-            <Text style={gs.label}>Best Score</Text>
-            <Text style={styles.statValue}>{stats.highScore.toLocaleString()}</Text>
+            <Text style={gs.label}>{isDaily ? "Today's Best" : 'Best Score'}</Text>
+            <Text style={styles.statValue}>
+              {(isDaily ? daily.bestToday : stats.highScore).toLocaleString()}
+            </Text>
           </View>
         </View>
       </Animated.View>
@@ -211,24 +284,20 @@ export const ResultScreen = () => {
             {!adLoaded ? 'LOADING AD...' : 'WATCH AD TO CONTINUE'}
           </Text>
         </TouchableOpacity>
-        <TouchableOpacity style={gs.primaryButton} activeOpacity={0.85} onPress={() => { resetGame(); setGameState('playing'); }}>
+        <TouchableOpacity style={gs.primaryButton} activeOpacity={0.85} onPress={() => startGame(gameMode)}>
           <Text style={[gs.buttonText, { letterSpacing: 3 }]}>RETRY</Text>
         </TouchableOpacity>
         <TouchableOpacity style={[gs.secondaryButton, { marginTop: SPACING.xs }]} activeOpacity={0.75} onPress={() => { resetGame(); setGameState('idle'); }}>
           <Text style={[gs.buttonText, { color: C.textSecondary, letterSpacing: 2 }]}>HOME</Text>
         </TouchableOpacity>
       </Animated.View>
-
-      <View style={{ position: 'absolute', bottom: 30, alignItems: 'center', width: '100%' }}>
-        <BannerAd
-          unitId="ca-app-pub-2672637411464206/8484392611"
-          size={BannerAdSize.ANCHORED_ADAPTIVE_BANNER}
-          requestOptions={{
-            requestNonPersonalizedAdsOnly: true,
-          }}
-          onAdFailedToLoad={(error) => console.warn('[ResultScreen BannerAd]', error.code, error.message)}
-        />
       </View>
+
+      <AdBanner
+        unitId="ca-app-pub-2672637411464206/8484392611"
+        placement="ResultScreen BannerAd"
+        position="bottom"
+      />
 
       <View style={styles.bottomAccent} pointerEvents="none" />
     </Animated.View>

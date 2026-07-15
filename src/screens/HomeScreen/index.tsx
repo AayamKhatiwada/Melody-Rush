@@ -1,12 +1,14 @@
 import React, { useEffect, useMemo, useRef } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Animated } from 'react-native';
-import { useGameStore } from '../../store';
-import { SPACING, FONT_SIZE, FONT_WEIGHT, SHADOWS, ColorPalette } from '../../constants/theme';
+import { useGameStore, effectiveStreak } from '../../store';
+import { SPACING, RADIUS, FONT_SIZE, FONT_WEIGHT, SHADOWS, ColorPalette } from '../../constants/theme';
 import { useColors, useGlobalStyles } from '../../hooks/useTheme';
-import { BannerAd, BannerAdSize } from 'react-native-google-mobile-ads';
+import { AdBanner } from '../../components/AdBanner';
+import { todayKey } from '../../utils/daily';
 
 const makeStyles = (C: ColorPalette) => StyleSheet.create({
-  container: {
+  content: {
+    flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: SPACING.xl,
@@ -65,6 +67,41 @@ const makeStyles = (C: ColorPalette) => StyleSheet.create({
   settingsButton: {
     marginTop: SPACING.xs,
   },
+  dailyButton: {
+    height: 56,
+    borderRadius: RADIUS.lg,
+    borderWidth: 1.5,
+    borderColor: C.warning,
+    backgroundColor: 'rgba(255,184,0,0.10)',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: SPACING.xl,
+    gap: SPACING.sm,
+  },
+  dailyButtonText: {
+    color: C.warning,
+    fontSize: FONT_SIZE.bodyLg,
+    fontWeight: FONT_WEIGHT.bold,
+    letterSpacing: 2,
+  },
+  streakBadge: {
+    backgroundColor: 'rgba(255,184,0,0.18)',
+    borderRadius: RADIUS.full,
+    paddingHorizontal: SPACING.md,
+    paddingVertical: 2,
+  },
+  streakBadgeText: {
+    color: C.warning,
+    fontSize: FONT_SIZE.bodySm,
+    fontWeight: FONT_WEIGHT.bold,
+  },
+  dailyDoneDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: C.success,
+  },
   bottomBar: {
     position: 'absolute',
     bottom: 0,
@@ -78,7 +115,9 @@ const makeStyles = (C: ColorPalette) => StyleSheet.create({
 });
 
 export const HomeScreen = () => {
-  const { setGameState, stats } = useGameStore();
+  const { setGameState, stats, startGame, daily } = useGameStore();
+  const streak = effectiveStreak(daily);
+  const playedToday = daily.lastPlayedDate === todayKey();
   const C = useColors();
   const gs = useGlobalStyles();
   const styles = useMemo(() => makeStyles(C), [C]);
@@ -97,60 +136,64 @@ export const HomeScreen = () => {
   }, []);
 
   return (
-    <Animated.View style={[gs.container, styles.container, { opacity: fadeAnim }]}>
+    <Animated.View style={[gs.container, { opacity: fadeAnim }]}>
       <View style={StyleSheet.absoluteFill} pointerEvents="none">
         {[0, 1, 2, 3].map(i => (
           <View key={i} style={[styles.bgLine, { left: `${(i + 1) * 20}%` as any }]} />
         ))}
       </View>
 
-      <View style={{ alignItems: 'center' }}>
-        <BannerAd
-          unitId="ca-app-pub-2672637411464206/9278549209"
-          size={BannerAdSize.ANCHORED_ADAPTIVE_BANNER}
-          requestOptions={{
-            requestNonPersonalizedAdsOnly: true,
-          }}
-          onAdFailedToLoad={(error) => console.warn('[HomeScreen TopBannerAd]', error.code, error.message)}
-        />
-      </View>
+      <AdBanner
+        unitId="ca-app-pub-2672637411464206/9278549209"
+        placement="HomeScreen TopBannerAd"
+        position="top"
+      />
 
-      <View style={{ alignItems: 'center', marginBottom: SPACING.xxxl + SPACING.xl }}>
-        <Animated.Text style={[styles.logoText, { opacity: glowAnim }]}>MELODY</Animated.Text>
-        <Text style={styles.logoAccent}>RUSH</Text>
-        <Text style={styles.tagline}>TAP TO THE BEAT</Text>
-      </View>
-
-      <View style={styles.statsRow}>
-        <View style={[gs.glassCard, styles.statCard]}>
-          <Text style={gs.label}>High Score</Text>
-          <Text style={styles.statValue}>{stats.highScore.toLocaleString()}</Text>
+      <View style={styles.content}>
+        <View style={{ alignItems: 'center', marginBottom: SPACING.xxxl + SPACING.xl }}>
+          <Animated.Text style={[styles.logoText, { opacity: glowAnim }]}>MELODY</Animated.Text>
+          <Text style={styles.logoAccent}>RUSH</Text>
+          <Text style={styles.tagline}>TAP TO THE BEAT</Text>
         </View>
-        <View style={[gs.glassCard, styles.statCard]}>
-          <Text style={gs.label}>Best Combo</Text>
-          <Text style={styles.statValue}>{stats.bestCombo}x</Text>
+
+        <View style={styles.statsRow}>
+          <View style={[gs.glassCard, styles.statCard]}>
+            <Text style={gs.label}>High Score</Text>
+            <Text style={styles.statValue}>{stats.highScore.toLocaleString()}</Text>
+          </View>
+          <View style={[gs.glassCard, styles.statCard]}>
+            <Text style={gs.label}>Best Combo</Text>
+            <Text style={styles.statValue}>{stats.bestCombo}x</Text>
+          </View>
+        </View>
+
+        <View style={styles.buttonSection}>
+          <TouchableOpacity style={gs.primaryButton} activeOpacity={0.85} onPress={() => startGame('endless')}>
+            <Text style={[gs.buttonText, { letterSpacing: 3 }]}>PLAY NOW</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.dailyButton} activeOpacity={0.8} onPress={() => startGame('daily')}>
+            {playedToday && <View style={styles.dailyDoneDot} />}
+            <Text style={styles.dailyButtonText}>DAILY CHALLENGE</Text>
+            {streak > 0 && (
+              <View style={styles.streakBadge}>
+                <Text style={styles.streakBadgeText}>🔥 {streak}</Text>
+              </View>
+            )}
+          </TouchableOpacity>
+          <TouchableOpacity style={gs.secondaryButton} activeOpacity={0.75} onPress={() => setGameState('stats')}>
+            <Text style={[gs.buttonText, { color: C.textSecondary }]}>STATS</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={[gs.secondaryButton, styles.settingsButton]} activeOpacity={0.75} onPress={() => setGameState('paused')}>
+            <Text style={[gs.buttonText, { color: C.textSecondary }]}>SETTINGS</Text>
+          </TouchableOpacity>
         </View>
       </View>
 
-      <View style={styles.buttonSection}>
-        <TouchableOpacity style={gs.primaryButton} activeOpacity={0.85} onPress={() => setGameState('playing')}>
-          <Text style={[gs.buttonText, { letterSpacing: 3 }]}>PLAY NOW</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={[gs.secondaryButton, styles.settingsButton]} activeOpacity={0.75} onPress={() => setGameState('paused')}>
-          <Text style={[gs.buttonText, { color: C.textSecondary }]}>SETTINGS</Text>
-        </TouchableOpacity>
-      </View>
-
-      <View style={{ position: 'absolute', bottom: 30, alignItems: 'center', width: '100%' }}>
-        <BannerAd
-          unitId="ca-app-pub-2672637411464206/5007118973"
-          size={BannerAdSize.ANCHORED_ADAPTIVE_BANNER}
-          requestOptions={{
-            requestNonPersonalizedAdsOnly: true,
-          }}
-          onAdFailedToLoad={(error) => console.warn('[HomeScreen BannerAd]', error.code, error.message)}
-        />
-      </View>
+      <AdBanner
+        unitId="ca-app-pub-2672637411464206/5007118973"
+        placement="HomeScreen BannerAd"
+        position="bottom"
+      />
 
       <View style={styles.bottomBar} pointerEvents="none" />
     </Animated.View>

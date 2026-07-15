@@ -105,6 +105,12 @@ class AudioManager {
     return this.activeMelody;
   }
 
+  // Daily challenge always runs on the default song so the tile
+  // sequence is identical for every player that day
+  get defaultMelody(): string[] {
+    return DEFAULT_MELODY;
+  }
+
   private async preloadNotes(notes: string[]) {
     for (const note of new Set(notes)) {
       if (!this.loadedNotes[note] && NOTE_FILES[note]) {
@@ -116,11 +122,11 @@ class AudioManager {
     }
   }
 
-  async playMusic() {
+  async playMusic(forceDefault = false) {
     const { settings } = useGameStore.getState();
     if (!settings.musicEnabled) return;
 
-    const desiredUri = this.customBackgroundUri ?? null;
+    const desiredUri = forceDefault ? null : this.customBackgroundUri ?? null;
 
     const sourceKey = desiredUri ?? '__default__';
     if (this.loadedBackgroundUri !== sourceKey || !this.backgroundMusic) {

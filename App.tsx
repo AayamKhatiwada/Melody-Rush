@@ -9,6 +9,8 @@ import { HomeScreen } from './src/screens/HomeScreen';
 import { GameScreen } from './src/screens/GameScreen';
 import { ResultScreen } from './src/screens/ResultScreen';
 import { SettingsScreen } from './src/screens/SettingsScreen';
+import { StatsScreen } from './src/screens/StatsScreen';
+import { initIap } from './src/utils/iap';
 import { audioManager } from './src/game/audio';
 import { FONT_SIZE, FONT_WEIGHT, SHADOWS } from './src/constants/theme';
 import { useColors } from './src/hooks/useTheme';
@@ -152,6 +154,7 @@ function AppInner() {
       await loadInitialData();
       await audioManager.init();
       await mobileAds().initialize();
+      initIap(); // don't block startup on billing
       setIsReady(true);
       showAppOpenAdOnColdStart();
 
@@ -193,6 +196,7 @@ function AppInner() {
       {gameState === 'playing' && <GameScreen />}
       {gameState === 'gameover' && <ResultScreen />}
       {gameState === 'paused' && <SettingsScreen />}
+      {gameState === 'stats' && <StatsScreen />}
     </View>
   );
 }

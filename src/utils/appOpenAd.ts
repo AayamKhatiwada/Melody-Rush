@@ -1,6 +1,7 @@
 import { AppState, AppStateStatus } from 'react-native';
 import { AppOpenAd, AdEventType } from 'react-native-google-mobile-ads';
 import { isAdShowing, setAdShowing } from './adState';
+import { useGameStore } from '../store';
 
 const AD_UNIT_ID = 'ca-app-pub-2672637411464206/2291458703';
 const MAX_LOAD_RETRIES = 5;
@@ -61,6 +62,7 @@ export function preloadAppOpenAd() {
 }
 
 export function showAppOpenAd() {
+  if (useGameStore.getState().adsRemoved) return;
   if (!loaded || !appOpenAd) {
     console.warn('[AppOpenAd] show skipped: not loaded');
     return;
@@ -75,6 +77,7 @@ export function showAppOpenAd() {
 // Preloads (if needed) and shows as soon as the ad finishes loading.
 // Used for the initial cold-start app open ad.
 export function showAppOpenAdOnColdStart() {
+  if (useGameStore.getState().adsRemoved) return;
   if (loaded) {
     showAppOpenAd();
     return;

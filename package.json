@@ -15,6 +15,7 @@
     "expo-av": "~16.0.8",
     "expo-document-picker": "~14.0.8",
     "expo-file-system": "~19.0.22",
+    "expo-iap": "^4.5.0",
     "expo-status-bar": "~3.0.9",
     "react": "19.1.0",
     "react-dom": "19.1.0",

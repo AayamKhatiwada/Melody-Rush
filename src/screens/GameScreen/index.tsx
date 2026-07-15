@@ -13,9 +13,10 @@ import {
 } from '../../constants';
 import { TileData } from '../../types';
 import { audioManager } from '../../game/audio';
-import { BannerAd, BannerAdSize } from 'react-native-google-mobile-ads';
 import { preloadRewardedAd } from '../../utils/rewardedAd';
 import { preloadInterstitialAd } from '../../utils/interstitialAd';
+import { makeDailyRng, todayKey } from '../../utils/daily';
+import { getSkin } from '../../constants/skins';
 
 type FeedbackType = 'perfect' | 'good' | 'miss' | null;
 
@@ -26,7 +27,10 @@ const FEEDBACK_COLORS: Record<string, string> = {
 };
 
 export const GameScreen = () => {
-  const { setGameState, setScore, setCombo, combo, score, stats, updateStats, resetGame } = useGameStore();
+  const { setGameState, setScore, setCombo, combo, score, resetGame, recordGameEnd, gameMode, settings } = useGameStore();
+
+  const isDaily = gameMode === 'daily';
+  const skin = getSkin(settings.activeSkin);
 
   const [tiles, setTiles] = useState<TileData[]>([]);
   const [feedback, setFeedback] = useState<FeedbackType>(null);
@@ -46,6 +50,15 @@ export const GameScreen = () => {
   const feverActiveRef = useRef(false);
   const feverTimerRef = useRef(0);
   const lanePressedRef = useRef([false, false, false, false]);
+
+  // Daily challenge uses a date-seeded RNG so the tile sequence is the same
+  // for everyone that day; endless keeps plain randomness
+  const rngRef = useRef<() => number>(isDaily ? makeDailyRng(todayKey()) : Math.random);
+
+  // Run stats for this segment (a fresh segment starts after an ad-continue)
+  const tilesTappedRef = useRef(0);
+  const goldenTilesRef = useRef(0);
+  const playTimeMsRef = useRef(0);
 
   // Combo pop animation
   const comboScale = useRef(new Animated.Value(1)).current;
@@ -71,16 +84,28 @@ export const GameScreen = () => {
     audioManager.resumeMusic();
   };
 
+  const flushRunStats = () => {
+    recordGameEnd({
+      tilesTapped: tilesTappedRef.current,
+      goldenTiles: goldenTilesRef.current,
+      playTimeMs: Math.round(playTimeMsRef.current),
+    });
+    tilesTappedRef.current = 0;
+    goldenTilesRef.current = 0;
+    playTimeMsRef.current = 0;
+  };
+
   const quitGame = () => {
     stopGameLoop();
     audioManager.stopMusic();
+    flushRunStats();
     resetGame();
     setGameState('idle');
   };
 
   useEffect(() => {
     preloadRewardedAd();
-    preloadInterstitialAd();
+    if (!useGameStore.getState().adsRemoved) preloadInterstitialAd();
     const sub = BackHandler.addEventListener('hardwareBackPress', () => {
       if (isPausedRef.current) {
         resumeGame();
@@ -121,7 +146,7 @@ export const GameScreen = () => {
   const startGameLoop = () => {
     lastTimeRef.current = performance.now();
     requestRef.current = requestAnimationFrame(gameLoop);
-    audioManager.playMusic();
+    audioManager.playMusic(isDaily);
   };
 
   const stopGameLoop = () => {
@@ -129,7 +154,7 @@ export const GameScreen = () => {
   };
 
   const spawnTile = () => {
-    const melody = audioManager.melody || [];
+    const melody = (isDaily ? audioManager.defaultMelody : audioManager.melody) || [];
     const note = melody[spawnedCountRef.current % melody.length] || 'C4';
     spawnedCountRef.current += 1;
 
@@ -140,10 +165,10 @@ export const GameScreen = () => {
       C5: 2, Db5: 2, D5: 2,
       Eb5: 3, E5: 3,
     };
-    const lane = noteToLaneMap[note] !== undefined ? noteToLaneMap[note] : Math.floor(Math.random() * LANES);
-    
+    const lane = noteToLaneMap[note] !== undefined ? noteToLaneMap[note] : Math.floor(rngRef.current() * LANES);
+
     // Choose tile type based on probability weights
-    const rand = Math.random();
+    const rand = rngRef.current();
     let type: 'normal' | 'bomb' | 'golden' = 'normal';
 
     if (rand < 0.85) {
@@ -174,11 +199,7 @@ export const GameScreen = () => {
     feverActiveRef.current = false;
     setTimeout(() => setFeverActive(false), 0);
 
-    const currentScore = useGameStore.getState().score;
-    const maxCombo = useGameStore.getState().maxCombo;
-
-    if (currentScore > stats.highScore) updateStats({ highScore: currentScore });
-    if (maxCombo > stats.bestCombo) updateStats({ bestCombo: maxCombo });
+    flushRunStats();
 
     setGameState('gameover');
   };
@@ -190,6 +211,8 @@ export const GameScreen = () => {
     // can't fling tiles past the bottom and trigger an instant game over
     const deltaTime = Math.min((time - lastTimeRef.current) / 1000, 0.1);
     lastTimeRef.current = time;
+
+    playTimeMsRef.current += deltaTime * 1000;
 
     // Fever timer update
     if (feverActiveRef.current) {
@@ -292,7 +315,10 @@ export const GameScreen = () => {
       );
       setTiles(tilesRef.current);
 
+      tilesTappedRef.current += 1;
+
       if (hitTileType === 'golden') {
+        goldenTilesRef.current += 1;
         feverActiveRef.current = true;
         feverTimerRef.current = 5.0; // 5-second Fever Mode
         setFeverActive(true);
@@ -327,7 +353,7 @@ export const GameScreen = () => {
       {/* HUD */}
       <View style={styles.hud} pointerEvents="none">
         <View style={styles.scoreWrapper}>
-          <Text style={styles.scoreLabel}>SCORE</Text>
+          <Text style={styles.scoreLabel}>{isDaily ? 'DAILY CHALLENGE' : 'SCORE'}</Text>
           <Text style={styles.scoreText}>{score.toLocaleString()}</Text>
         </View>
 
@@ -379,7 +405,14 @@ export const GameScreen = () => {
         {tiles.map(tile => {
           if (tile.isHit) return null;
 
-          let tileStyle: any[] = [styles.tile];
+          let tileStyle: any[] = [
+            styles.tile,
+            {
+              backgroundColor: skin.tileBackground,
+              borderColor: skin.accent,
+              shadowColor: skin.accent,
+            },
+          ];
           let child = null;
 
           if (tile.type === 'bomb') {
@@ -418,7 +451,7 @@ export const GameScreen = () => {
 
         {/* Hit zone */}
         <View style={styles.hitZone} pointerEvents="none">
-          <View style={styles.hitZoneLine} />
+          <View style={[styles.hitZoneLine, { backgroundColor: skin.accent, shadowColor: skin.accent }]} />
         </View>
       </View>
 
@@ -438,16 +471,6 @@ export const GameScreen = () => {
         </View>
       )}
 
-      <View style={{ position: 'absolute', bottom: 0, alignItems: 'center', width: '100%', zIndex: 100 }}>
-        <BannerAd
-          unitId="ca-app-pub-2672637411464206/8484392611"
-          size={BannerAdSize.ANCHORED_ADAPTIVE_BANNER}
-          requestOptions={{
-            requestNonPersonalizedAdsOnly: true,
-          }}
-          onAdFailedToLoad={(error) => console.warn('[GameScreen BannerAd]', error.code, error.message)}
-        />
-      </View>
     </View>
   );
 };

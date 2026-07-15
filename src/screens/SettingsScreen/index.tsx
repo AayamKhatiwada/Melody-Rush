@@ -1,7 +1,7 @@
-import React, { useEffect, useMemo, useRef } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   View, Text, Switch, StyleSheet, TouchableOpacity,
-  Animated, ScrollView, BackHandler,
+  Animated, ScrollView, BackHandler, Alert, ActivityIndicator,
 } from 'react-native';
 import * as DocumentPicker from 'expo-document-picker';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -13,7 +13,17 @@ import { prepareAudioFile } from '../../utils/audioConverter';
 import { useAudioAnalyzer } from '../../utils/AudioAnalyzer';
 import { audioManager } from '../../game/audio';
 import { useColors, useGlobalStyles } from '../../hooks/useTheme';
-import { BannerAd, BannerAdSize } from 'react-native-google-mobile-ads';
+import { AdBanner } from '../../components/AdBanner';
+import { TILE_SKINS, TileSkin, DEFAULT_SKIN_ID } from '../../constants/skins';
+import { ACHIEVEMENT_MAP } from '../../constants/achievements';
+import {
+  isRewardedAdLoaded, showRewardedAd, subscribe as subscribeRewarded,
+  subscribeToAdClosed, preloadRewardedAd, resetRewardState,
+} from '../../utils/rewardedAd';
+import {
+  buyRemoveAds, restoreRemoveAds, getRemoveAdsPrice,
+  subscribeToPrice, subscribeToPurchaseError,
+} from '../../utils/iap';
 
 // ─── Progress bar ─────────────────────────────────────────────────────────────
 
@@ -269,6 +279,118 @@ const makeStyles = (C: ColorPalette) => StyleSheet.create({
     lineHeight: 18,
   },
   backButton: { width: '100%', marginTop: SPACING.sm },
+
+  // ── Skins ──
+  skinGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: SPACING.md,
+  },
+  skinCard: {
+    flexBasis: '47%',
+    flexGrow: 1,
+    padding: SPACING.lg,
+    alignItems: 'center',
+    borderRadius: RADIUS.lg,
+    borderWidth: 1,
+    borderColor: C.glassBorder,
+    backgroundColor: C.glassBackground,
+  },
+  skinCardActive: {
+    borderWidth: 1.5,
+  },
+  skinSwatch: {
+    width: 44,
+    height: 64,
+    borderRadius: RADIUS.md,
+    borderWidth: 1.5,
+    marginBottom: SPACING.md,
+  },
+  skinName: {
+    color: C.text,
+    fontSize: FONT_SIZE.bodySm,
+    fontWeight: FONT_WEIGHT.semibold,
+    marginBottom: SPACING.xs,
+  },
+  skinStatus: {
+    fontSize: FONT_SIZE.caption,
+    color: C.textMuted,
+    textAlign: 'center',
+  },
+  skinStatusActive: {
+    color: C.success,
+    fontWeight: FONT_WEIGHT.bold,
+    letterSpacing: 1,
+  },
+  skinAdButton: {
+    marginTop: SPACING.sm,
+    borderRadius: RADIUS.sm,
+    borderWidth: 1,
+    borderColor: C.warning,
+    backgroundColor: 'rgba(255,184,0,0.10)',
+    paddingVertical: SPACING.xs,
+    paddingHorizontal: SPACING.md,
+  },
+  skinAdButtonText: {
+    color: C.warning,
+    fontSize: FONT_SIZE.caption,
+    fontWeight: FONT_WEIGHT.bold,
+    letterSpacing: 1,
+  },
+
+  // ── Remove ads ──
+  removeAdsCard: { padding: SPACING.xl },
+  removeAdsTitle: {
+    color: C.text,
+    fontSize: FONT_SIZE.bodyLg,
+    fontWeight: FONT_WEIGHT.bold,
+    marginBottom: SPACING.xs,
+  },
+  removeAdsDescription: {
+    color: C.textSecondary,
+    fontSize: FONT_SIZE.bodySm,
+    lineHeight: 20,
+    marginBottom: SPACING.lg,
+  },
+  buyButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: SPACING.sm,
+    backgroundColor: C.primary,
+    borderRadius: RADIUS.md,
+    paddingVertical: SPACING.lg,
+    ...SHADOWS.neonBlue,
+  },
+  buyButtonText: {
+    color: C.background,
+    fontSize: FONT_SIZE.bodySm,
+    fontWeight: FONT_WEIGHT.bold,
+    letterSpacing: 2,
+  },
+  restoreButton: {
+    alignItems: 'center',
+    marginTop: SPACING.md,
+    paddingVertical: SPACING.sm,
+  },
+  restoreText: {
+    color: C.textMuted,
+    fontSize: FONT_SIZE.caption,
+    fontWeight: FONT_WEIGHT.semibold,
+    letterSpacing: 1.5,
+    textDecorationLine: 'underline',
+  },
+  adsRemovedBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.sm,
+  },
+  adsRemovedText: {
+    color: C.success,
+    fontSize: FONT_SIZE.bodyMd,
+    fontWeight: FONT_WEIGHT.bold,
+    letterSpacing: 1,
+  },
 });
 
 // ─── Screen ───────────────────────────────────────────────────────────────────
@@ -279,6 +401,7 @@ export const SettingsScreen = () => {
     conversionStatus, conversionProgress, conversionStep,
     conversionError, conversionNoteCount,
     setConversionProgress, setConversionStatus, resetConversion,
+    achievements, unlockedSkins, unlockSkin, adsRemoved, checkAchievements,
   } = useGameStore();
 
   const { analyze, cancel } = useAudioAnalyzer();
@@ -288,6 +411,99 @@ export const SettingsScreen = () => {
   const isPicking = useRef(false);
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(30)).current;
+
+  // ── Skins ──
+  const activeSkinId = settings.activeSkin ?? DEFAULT_SKIN_ID;
+  const [rewardedLoaded, setRewardedLoaded] = useState(isRewardedAdLoaded());
+  const pendingSkinRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    preloadRewardedAd();
+    const unsubLoad = subscribeRewarded(() => setRewardedLoaded(isRewardedAdLoaded()));
+    const unsubClosed = subscribeToAdClosed(rewardEarned => {
+      const skinId = pendingSkinRef.current;
+      pendingSkinRef.current = null;
+      if (rewardEarned && skinId) {
+        unlockSkin(skinId);
+        updateSettings({ activeSkin: skinId });
+      }
+    });
+    return () => {
+      unsubLoad();
+      unsubClosed();
+    };
+  }, []);
+
+  const isSkinUnlocked = (skin: TileSkin): boolean => {
+    switch (skin.unlock.type) {
+      case 'free': return true;
+      case 'achievement': return !!achievements[skin.unlock.achievementId];
+      case 'ad': return unlockedSkins.includes(skin.id);
+    }
+  };
+
+  const skinLockLabel = (skin: TileSkin): string => {
+    if (skin.unlock.type === 'achievement') {
+      const a = ACHIEVEMENT_MAP[skin.unlock.achievementId];
+      return a ? `${a.icon} ${a.description}` : 'Locked';
+    }
+    return 'Watch an ad to unlock';
+  };
+
+  const handleSkinPress = (skin: TileSkin) => {
+    if (isSkinUnlocked(skin)) {
+      updateSettings({ activeSkin: skin.id });
+      return;
+    }
+    if (skin.unlock.type === 'ad' && rewardedLoaded) {
+      pendingSkinRef.current = skin.id;
+      resetRewardState();
+      showRewardedAd();
+    }
+  };
+
+  // ── Remove ads ──
+  const [price, setPrice] = useState(getRemoveAdsPrice());
+  const [purchasing, setPurchasing] = useState(false);
+
+  useEffect(() => {
+    const unsubPrice = subscribeToPrice(setPrice);
+    const unsubError = subscribeToPurchaseError(message => {
+      setPurchasing(false);
+      Alert.alert('Purchase failed', message);
+    });
+    return () => {
+      unsubPrice();
+      unsubError();
+    };
+  }, []);
+
+  useEffect(() => {
+    if (adsRemoved) setPurchasing(false);
+  }, [adsRemoved]);
+
+  const handleBuyRemoveAds = async () => {
+    if (purchasing) return;
+    setPurchasing(true);
+    try {
+      await buyRemoveAds();
+    } catch (err: any) {
+      setPurchasing(false);
+      Alert.alert('Purchase failed', err?.message ?? 'Billing is not available right now.');
+    }
+  };
+
+  const handleRestore = async () => {
+    try {
+      const owned = await restoreRemoveAds();
+      Alert.alert(
+        owned ? 'Purchases restored' : 'Nothing to restore',
+        owned ? 'Ads are now removed on this device.' : 'No previous "Remove Ads" purchase was found for this account.',
+      );
+    } catch (err: any) {
+      Alert.alert('Restore failed', err?.message ?? 'Could not reach the store.');
+    }
+  };
 
   useEffect(() => {
     Animated.parallel([
@@ -327,6 +543,7 @@ export const SettingsScreen = () => {
       });
       audioManager.applyCustomSong(melody, localUri);
       setConversionStatus('success', { noteCount: melody.length });
+      checkAchievements(); // "DJ Mode" — imported a custom song
     } catch (err: any) {
       if (err?.message === '__CANCELLED__') {
         resetConversion();
@@ -376,6 +593,12 @@ export const SettingsScreen = () => {
 
   return (
     <Animated.View style={[gs.container, { opacity: fadeAnim }]}>
+      <AdBanner
+        unitId="ca-app-pub-2672637411464206/9278549209"
+        placement="SettingsScreen TopBannerAd"
+        position="top"
+      />
+
       <ScrollView
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
@@ -406,6 +629,67 @@ export const SettingsScreen = () => {
               thumbColor={C.switchThumb}
               ios_backgroundColor={C.elevated}
             />
+          </View>
+        </Animated.View>
+
+        {/* ── Tile skins ── */}
+        <Animated.View style={[styles.section, { transform: [{ translateY: slideAnim }] }]}>
+          <Text style={styles.sectionLabel}>TILE SKINS</Text>
+          <View style={styles.skinGrid}>
+            {TILE_SKINS.map(skin => {
+              const unlocked = isSkinUnlocked(skin);
+              const active = activeSkinId === skin.id;
+              return (
+                <TouchableOpacity
+                  key={skin.id}
+                  style={[
+                    styles.skinCard,
+                    active && styles.skinCardActive,
+                    active && { borderColor: skin.accent },
+                    !unlocked && { opacity: 0.6 },
+                  ]}
+                  activeOpacity={0.8}
+                  onPress={() => handleSkinPress(skin)}
+                >
+                  <View
+                    style={[
+                      styles.skinSwatch,
+                      {
+                        backgroundColor: skin.tileBackground,
+                        borderColor: skin.accent,
+                        shadowColor: skin.accent,
+                        shadowOpacity: 0.7,
+                        shadowRadius: 8,
+                        shadowOffset: { width: 0, height: 0 },
+                        elevation: 6,
+                      },
+                    ]}
+                  />
+                  <Text style={styles.skinName}>{skin.name}</Text>
+                  {active ? (
+                    <Text style={[styles.skinStatus, styles.skinStatusActive]}>ACTIVE</Text>
+                  ) : unlocked ? (
+                    <Text style={styles.skinStatus}>Tap to use</Text>
+                  ) : (
+                    <>
+                      <Text style={styles.skinStatus}>{skinLockLabel(skin)}</Text>
+                      {skin.unlock.type === 'ad' && (
+                        <TouchableOpacity
+                          style={[styles.skinAdButton, !rewardedLoaded && { opacity: 0.4 }]}
+                          disabled={!rewardedLoaded}
+                          onPress={() => handleSkinPress(skin)}
+                          activeOpacity={0.8}
+                        >
+                          <Text style={styles.skinAdButtonText}>
+                            {rewardedLoaded ? '▶ WATCH AD' : 'LOADING…'}
+                          </Text>
+                        </TouchableOpacity>
+                      )}
+                    </>
+                  )}
+                </TouchableOpacity>
+              );
+            })}
           </View>
         </Animated.View>
 
@@ -525,6 +809,43 @@ export const SettingsScreen = () => {
           </View>
         </Animated.View>
 
+        {/* ── Remove ads ── */}
+        <Animated.View style={[styles.section, { transform: [{ translateY: slideAnim }] }]}>
+          <Text style={styles.sectionLabel}>PREMIUM</Text>
+          <View style={[gs.glassCard, styles.removeAdsCard]}>
+            {adsRemoved ? (
+              <View style={styles.adsRemovedBadge}>
+                <Text style={styles.adsRemovedText}>✓ ADS REMOVED</Text>
+                <Text style={{ color: C.textMuted, fontSize: FONT_SIZE.caption }}>
+                  Thanks for supporting Melody Rush!
+                </Text>
+              </View>
+            ) : (
+              <>
+                <Text style={styles.removeAdsTitle}>Remove Ads</Text>
+                <Text style={styles.removeAdsDescription}>
+                  One-time purchase. Removes banners, interstitials and app-open ads forever.
+                  Optional rewarded ads (continue, skins) stay available.
+                </Text>
+                <TouchableOpacity
+                  style={[styles.buyButton, purchasing && { opacity: 0.6 }]}
+                  activeOpacity={0.85}
+                  disabled={purchasing}
+                  onPress={handleBuyRemoveAds}
+                >
+                  {purchasing && <ActivityIndicator size="small" color={C.background} />}
+                  <Text style={styles.buyButtonText}>
+                    {purchasing ? 'PROCESSING…' : `REMOVE ADS${price ? ` · ${price}` : ''}`}
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.restoreButton} onPress={handleRestore} activeOpacity={0.7}>
+                  <Text style={styles.restoreText}>RESTORE PURCHASES</Text>
+                </TouchableOpacity>
+              </>
+            )}
+          </View>
+        </Animated.View>
+
         <TouchableOpacity
           style={[gs.secondaryButton, styles.backButton]}
           activeOpacity={0.75}
@@ -536,16 +857,11 @@ export const SettingsScreen = () => {
         </TouchableOpacity>
       </ScrollView>
 
-      <View style={{ alignItems: 'center', width: '100%', paddingBottom: 30 }}>
-        <BannerAd
-          unitId="ca-app-pub-2672637411464206/5007118973"
-          size={BannerAdSize.ANCHORED_ADAPTIVE_BANNER}
-          requestOptions={{
-            requestNonPersonalizedAdsOnly: true,
-          }}
-          onAdFailedToLoad={(error) => console.warn('[SettingsScreen BannerAd]', error.code, error.message)}
-        />
-      </View>
+      <AdBanner
+        unitId="ca-app-pub-2672637411464206/5007118973"
+        placement="SettingsScreen BannerAd"
+        position="bottom"
+      />
     </Animated.View>
   );
 };
